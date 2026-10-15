@@ -81,6 +81,23 @@ The program is split into a **reader** (PDF → a list of headings, paragraphs a
 (that list → PDF, Markdown, HTML). Supporting another output (e.g. Word) means adding a writer; another input
 (e.g. .docx or HTML, where headings are explicit styles/tags) means adding a reader that produces the same list.
 
+## Tests
+
+`tests/test_strip_pdf.py` builds small PDFs on the fly (no sample files needed) and checks text clean-up,
+headings from typography and from bookmarks, contents pages, figure captions, running headers/footers,
+letter-spaced titles, and that the output PDF's text copies and searches cleanly. Run them before changing
+`strip_pdf.py`:
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+```
+
+```bash
+python -m pytest
+```
+
+GitHub runs the same tests on every push (`.github/workflows/tests.yml`).
+
 ## Known limitations
 
 - **Scanned PDFs** (pages that are just pictures, no selectable text) produce an error: they need OCR first.

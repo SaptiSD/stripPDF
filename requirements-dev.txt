@@ -1,0 +1,4 @@
+# Tools for working on strip_pdf.py (the app itself only needs requirements.txt).
+#   pip install -r requirements.txt -r requirements-dev.txt
+#   python -m pytest
+pytest>=8
