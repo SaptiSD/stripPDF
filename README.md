@@ -43,7 +43,10 @@ streamlit run app.py
    reviewers: they open it, upload a PDF, and download the text-only version.
 
 To update the site later, edit the files on GitHub; the app redeploys by itself.
-Free apps go to sleep after a period with no visitors; the next visitor clicks a button to wake it (about a minute).
+Free apps go to sleep after 12 hours with no visitors. The GitHub Action in
+`.github/workflows/keep-awake.yml` opens the app in a headless browser every 6 hours so it stays awake
+(and wakes it if it did fall asleep). GitHub pauses scheduled actions in a public repo after 60 days with
+no commits; if that happens, re-enable it on the repo's **Actions** tab.
 
 *Alternative:* Hugging Face Spaces (huggingface.co/spaces) also hosts Streamlit apps for free without
 needing GitHub: create a Space with the **Docker → Streamlit** template and upload the same three files.
