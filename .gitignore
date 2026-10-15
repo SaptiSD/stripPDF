@@ -1,0 +1,4 @@
+__pycache__/
+.claude/
+# example output contains the source report text - keep it local
+sample_output/
