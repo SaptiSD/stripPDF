@@ -53,19 +53,33 @@ needing GitHub: create a Space with the **Docker → Streamlit** template and up
 
 ## How it decides what to keep
 
-The program reads every line of text with its font size, weight and position, plus the position of every
-picture and vector graphic on the page, then applies a few rules:
+A PDF has no paragraphs or headings inside it, only positioned glyphs. So the program works mainly from
+**layout and typography**, not from wording. It reads every character with its font, size, weight, colour and
+position, plus the outline of every picture and vector graphic on the page. Then:
 
-1. The most common font size is the **body text**. Text that is clearly larger, or bold on its own line,
-   is a **heading**; the recurring heading sizes become heading levels (biggest = H1).
-2. Text **on top of a picture or inside a chart** that is small or short is a label → removed.
-3. Small or italic text **right next to a picture** is a caption → removed. So is a short bold/colored
-   line directly above a chart (the chart title), and any line starting with `Figure 1:`, `Source:`,
-   `Credit:`, `Photo:` etc.
-4. Text in the top/bottom margin that **repeats on many pages** is a header/footer → removed.
-5. Paragraphs split by a page break or a photo are joined back together; hyphenated line breaks are repaired.
+1. **Clean the text.** Accents are composed, ligatures (ﬁ → fi) expanded, Word/Wingdings bullets mapped to •,
+   and invisible control characters dropped (e.g. the U+0003 InDesign leaves at paragraph ends).
+   Letter-spaced display type ("S P A C E") is rebuilt from character positions. PDFs whose fonts have no
+   text mapping at all are rejected with a "needs OCR" message.
+2. **Find the body text.** The most common font size is the body text. Text that is clearly larger, or
+   bold on its own line, is a **heading candidate**.
+3. **Drop figure text.** Text on top of a picture or inside a chart that is small or short is a label.
+   Small or italic text right next to a picture is a caption. A short bold/coloured line directly above
+   a chart is its title. Text in the top/bottom margin that repeats on many pages is a header/footer.
+4. **Use the PDF's own bookmarks** when it has them: bookmarked titles become headings at the
+   bookmark's level, even when they look like body text. A contents page doesn't fool it, because the
+   real heading is the last occurrence near the bookmark's page.
+5. **Assemble.** Paragraphs split by a page break or a photo are re-joined, hyphenated line breaks repaired,
+   title lines set in mixed sizes merged, a title repeated on the cover and title page kept once, and
+   heading sizes ranked into H1–H4 (biggest recurring size = highest level).
 
+Regular expressions are only used for a few text patterns: caption prefixes (`Figure 1:`, `Source:`), bullet
+and note markers, page numbers and contents-page dot leaders. Everything else comes from geometry and fonts.
 The thresholds are named constants at the top of `strip_pdf.py` if you need to tune them.
+
+The program is split into a **reader** (PDF → a list of headings, paragraphs and list items) and **writers**
+(that list → PDF, Markdown, HTML). Supporting another output (e.g. Word) means adding a writer; another input
+(e.g. .docx or HTML, where headings are explicit styles/tags) means adding a reader that produces the same list.
 
 ## Known limitations
 
