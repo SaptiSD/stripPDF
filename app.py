@@ -2,11 +2,18 @@
 
 Run locally:  streamlit run app.py
 """
+import hashlib
+import importlib
 from pathlib import Path
 
 import streamlit as st
 
-from strip_pdf import convert
+import strip_pdf
+
+# Streamlit Cloud re-runs this file after a git push but keeps already-imported modules in
+# memory, so reload strip_pdf to pick up its latest version (takes a few milliseconds).
+importlib.reload(strip_pdf)
+CODE_VERSION = hashlib.sha1(Path(strip_pdf.__file__).read_bytes()).hexdigest()
 
 st.set_page_config(page_title="PDF Text Extractor", page_icon="📄")
 
@@ -24,8 +31,8 @@ st.write(
 
 
 @st.cache_data(show_spinner=False, max_entries=20, ttl=3600)
-def run(data: bytes, name: str):
-    return convert(data, name)
+def run(data: bytes, name: str, code_version: str):   # new strip_pdf.py code -> fresh results
+    return strip_pdf.convert(data, name)
 
 
 uploaded = st.file_uploader("Choose a PDF", type="pdf")
@@ -35,7 +42,7 @@ st.caption("Files are processed in memory and are not saved to disk. "
 if uploaded:
     try:
         with st.spinner("Removing images and captions…"):
-            result = run(uploaded.getvalue(), uploaded.name)
+            result = run(uploaded.getvalue(), uploaded.name, CODE_VERSION)
     except Exception as err:            # ValueError carries a friendly message; anything else is a bad file
         st.error(str(err) if isinstance(err, ValueError) else f"Could not read this PDF ({err}).")
         st.stop()
