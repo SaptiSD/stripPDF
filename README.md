@@ -2,7 +2,8 @@
 
 Turns a PDF (white paper, report, brochure) into a clean, **text-only** copy:
 
-- **Keeps:** body text, section headings (as H1–H4), bullet points, footnote/endnote text.
+- **Keeps:** body text, section headings (as H1–H4), tables (as real tables), bullet points,
+  footnote/endnote text.
 - **Removes:** photos, charts, diagrams, figure captions and titles, photo credits, chart labels/legends,
   "Source: …" lines, and the running header/footer and page number on every page.
 - **Outputs:** a new, simply formatted PDF (with clickable bookmarks for the headings) and a Markdown file.
@@ -66,10 +67,15 @@ position, plus the outline of every picture and vector graphic on the page. Then
 3. **Drop figure text.** Text on top of a picture or inside a chart that is small or short is a label.
    Small or italic text right next to a picture is a caption. A short bold/coloured line directly above
    a chart is its title. Text in the top/bottom margin that repeats on many pages is a header/footer.
-4. **Use the PDF's own bookmarks** when it has them: bookmarked titles become headings at the
+4. **Find tables.** Tables drawn with lines or cell borders are read with PyMuPDF's table finder, which
+   only runs on boxed areas holding text; charts it mistakes for tables are rejected because their
+   "cells" are mostly empty. Tables without lines (or with only shaded rows) are found as three or more
+   rows of short pieces of text that line up in columns; side-by-side prose columns and chart labels don't
+   qualify. Tables come out as real tables in the PDF, the Markdown and the web preview.
+5. **Use the PDF's own bookmarks** when it has them: bookmarked titles become headings at the
    bookmark's level, even when they look like body text. A contents page doesn't fool it, because the
    real heading is the last occurrence near the bookmark's page.
-5. **Assemble.** Paragraphs split by a page break or a photo are re-joined, hyphenated line breaks repaired,
+6. **Assemble.** Paragraphs split by a page break or a photo are re-joined, hyphenated line breaks repaired,
    title lines set in mixed sizes merged, a title repeated on the cover and title page kept once, and
    heading sizes ranked into H1–H4 (biggest recurring size = highest level).
 
@@ -77,7 +83,7 @@ Regular expressions are only used for a few text patterns: caption prefixes (`Fi
 and note markers, page numbers and contents-page dot leaders. Everything else comes from geometry and fonts.
 The thresholds are named constants at the top of `strip_pdf.py` if you need to tune them.
 
-The program is split into a **reader** (PDF → a list of headings, paragraphs and list items) and **writers**
+The program is split into a **reader** (PDF → a list of headings, paragraphs, list items and tables) and **writers**
 (that list → PDF, Markdown, HTML). Supporting another output (e.g. Word) means adding a writer; another input
 (e.g. .docx or HTML, where headings are explicit styles/tags) means adding a reader that produces the same list.
 
@@ -85,7 +91,8 @@ The program is split into a **reader** (PDF → a list of headings, paragraphs a
 
 `tests/test_strip_pdf.py` builds small PDFs on the fly (no sample files needed) and checks text clean-up,
 headings from typography and from bookmarks, contents pages, figure captions, running headers/footers,
-letter-spaced titles, and that the output PDF's text copies and searches cleanly. Run them before changing
+letter-spaced titles, tables in five styles (grid, banded, rules only, plain, shaded rows), that charts and
+two-column prose are *not* turned into tables, and that the output PDF's text copies and searches cleanly. Run them before changing
 `strip_pdf.py`:
 
 ```bash
@@ -101,8 +108,11 @@ GitHub runs the same tests on every push (`.github/workflows/tests.yml`).
 ## Known limitations
 
 - **Scanned PDFs** (pages that are just pictures, no selectable text) produce an error: they need OCR first.
-- **Tables** keep their text, but cell by cell, not as a table. Small-print tables drawn inside boxes may
-  be treated as chart text and dropped.
+- **Tables:** a table that is a picture is removed like any picture. In a table without lines, merged cells
+  are not recreated.
+- **Hyphens at line ends inside URLs** are ambiguous (`in-` + `dias` might be `indias` or `in-dias`). The
+  hyphen is kept unless the joined word appears elsewhere in the document, so a few wrapped URLs in
+  endnotes can carry an extra hyphen.
 - Text that is **part of an image** (e.g. a chart exported as a picture) was never text, so it can't be kept.
 - Reading order follows the order stored in the PDF, which is right for most reports and two-column papers
   but can be off for heavily designed layouts.

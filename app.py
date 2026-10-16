@@ -10,10 +10,16 @@ from strip_pdf import convert
 
 st.set_page_config(page_title="PDF Text Extractor", page_icon="📄")
 
+PREVIEW_CSS = """<style>
+table { border-collapse: collapse; margin: 0.25rem 0 1rem 0; }
+th, td { border: 1px solid rgba(128, 128, 128, 0.5); padding: 0.2rem 0.5rem; text-align: left; vertical-align: top; }
+th { background: rgba(128, 128, 128, 0.15); }
+</style>"""
+
 st.title("PDF Text Extractor")
 st.write(
-    "Upload a PDF such as a white paper or report. You get back a clean copy with the "
-    "body text and section headings, without photos, charts, captions or page headers/footers."
+    "Upload a PDF such as a white paper or report. You get back a clean copy with the body text, "
+    "section headings and tables, without photos, charts, captions or page headers/footers."
 )
 
 
@@ -40,7 +46,9 @@ if uploaded:
     cols[1].metric("Headings kept", s["headings"])
     cols[2].metric("Words kept", f"{s['words']:,}")
     cols[3].metric("Images & charts removed", s["images_removed"] + s["graphics_removed"])
-    st.caption(f"Also removed: {s.get('captions_removed', 0)} captions/figure titles, "
+    n_tables = s.get("tables", 0)
+    st.caption(f"Kept {n_tables} table{'' if n_tables == 1 else 's'}. "
+               f"Also removed: {s.get('captions_removed', 0)} captions/figure titles, "
                f"{s.get('figure_text_removed', 0)} chart labels, "
                f"{s.get('header_footer_removed', 0)} page headers/footers.")
 
@@ -53,4 +61,4 @@ if uploaded:
 
     st.subheader("Preview")
     with st.container(height=600, border=True):
-        st.html(result.html)
+        st.html(PREVIEW_CSS + result.html)

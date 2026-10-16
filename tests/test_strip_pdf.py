@@ -184,6 +184,159 @@ def letter_spaced_pdf() -> bytes:
     return doc.tobytes()
 
 
+TABLE = [["Region", "Members", "Volunteers"],
+         ["North", "412", "38"],
+         ["South", "295", "21"],
+         ["East | coast", "187", "12"]]                       # "|" must be escaped in Markdown
+TABLE_MARKDOWN = "\n".join(["| Region | Members | Volunteers |", "| --- | --- | --- |", "| North | 412 | 38 |",
+                            "| South | 295 | 21 |", "| East \\| coast | 187 | 12 |"])
+
+
+def table_pdf(style: str) -> bytes:
+    """A paragraph, TABLE, another paragraph. Styles seen in real reports:
+    grid   - every cell boxed, small 9 pt text (found by PyMuPDF's ruled-table finder)
+    banded - every row filled, colours alternating, no lines (one solid block of graphics)
+    rules  - horizontal rules only, like LaTeX/booktabs tables
+    plain  - no lines at all, body-size text
+    shaded - every other row filled, no lines, 9 pt text"""
+    doc = pymupdf.open()
+    w = Writer(doc)
+    w.add(PARAGRAPHS[0], space_after=14)
+    size = 9 if style in ("grid", "banded", "shaded") else 11
+    cols = [LEFT, LEFT + 170, LEFT + 290, LEFT + 410]
+    row_h, top = size + 9, w.y
+    bottom = top + len(TABLE) * row_h
+    for r, row in enumerate(TABLE):
+        y = top + r * row_h
+        if style == "banded" or (style == "shaded" and r % 2 == 0):
+            fill = (0.86, 0.9, 0.96) if r % 2 == 0 else (0.95, 0.96, 0.98)
+            w.page.draw_rect(pymupdf.Rect(cols[0], y, cols[-1], y + row_h), color=None, fill=fill)
+        for c, cell in enumerate(row):
+            w.page.insert_text((cols[c] + 4, y + size + 3), cell, fontsize=size, fontname="hebo" if r == 0 else "helv")
+    if style == "grid":
+        for r in range(len(TABLE) + 1):
+            w.page.draw_line((cols[0], top + r * row_h), (cols[-1], top + r * row_h), width=0.5)
+        for x in cols:
+            w.page.draw_line((x, top), (x, bottom), width=0.5)
+    if style == "rules":
+        for y in (top, top + row_h, bottom):
+            w.page.draw_line((cols[0], y), (cols[-1], y), width=0.8)
+    w.y = bottom + 14
+    w.add(PARAGRAPHS[1])
+    return doc.tobytes()
+
+
+def wrapped_table_pdf(style: str) -> bytes:
+    """Like table_pdf, but the first cell of the "South" row wraps onto a second line. style is
+    "grid" (every cell boxed) or "plain" (no lines)."""
+    doc = pymupdf.open()
+    w = Writer(doc)
+    w.add(PARAGRAPHS[0], space_after=14)
+    rows = [["Region", "Members", "Volunteers"], ["North", "412", "38"],
+            [("South and", "western coast"), "295", "21"], ["East", "187", "12"]]
+    cols = [LEFT, LEFT + 170, LEFT + 290, LEFT + 410]
+    top = y = w.y
+    for row in rows:
+        if style == "grid":
+            w.page.draw_line((cols[0], y), (cols[-1], y), width=0.5)
+        for c, cell in enumerate(row):
+            for k, part in enumerate(cell if isinstance(cell, tuple) else (cell,)):
+                w.page.insert_text((cols[c] + 4, y + 14 + k * 13), part, fontsize=11)
+        y += 33 if isinstance(row[0], tuple) else 20
+    if style == "grid":
+        w.page.draw_line((cols[0], y), (cols[-1], y), width=0.5)
+        for x in cols:
+            w.page.draw_line((x, top), (x, y), width=0.5)
+    w.y = y + 14
+    w.add(PARAGRAPHS[1])
+    return doc.tobytes()
+
+
+SPLIT_START = "Visitors arriving by bus can now take the new path that leads from the stop on"
+SPLIT_END = "Church Lane straight to the ticket office, which saves a long walk round the car park."
+PAGE_END = "Volunteers staffed every stall at the autumn fair this year, and the committee wishes to thank the"
+PAGE_START = "Friends of the Garden for lending their marquee, tables and urns for the whole weekend."
+NOTES = ["1 Northwind Trust. 2026. Annual report. https://www.northwind-trust.", "org/reports/annual-2026",
+         "2 ispace. 2026. Results for the year ending March 2026.", "3 Garden Society. 2025. Visitor survey."]
+
+
+def assembly_pdf() -> bytes:
+    """Things a PDF splits that belong together, and things it runs together that don't:
+    a sentence stored as two text blocks (the second indented, as when text wraps round a photo),
+    a sentence running over a page break, and endnotes in small print where one URL wraps after a
+    dot and one note starts with a lower-case name."""
+    doc = pymupdf.open()
+    w = Writer(doc)
+    w.add(PARAGRAPHS[0], space_after=14)
+    w.page.insert_text((LEFT, w.y + 11), SPLIT_START, fontsize=11)
+    w.page.insert_text((LEFT + 20, w.y + 24.5), SPLIT_END, fontsize=11)
+    w.y += 44
+    w.add(PARAGRAPHS[1], space_after=14)
+    assert w.page.insert_textbox(pymupdf.Rect(LEFT, BOTTOM - 40, RIGHT, BOTTOM), PAGE_END, fontsize=11) >= 0
+    w.new_page()
+    w.add(PAGE_START, space_after=14)
+    for i, note in enumerate(NOTES):
+        w.page.insert_text((LEFT, w.y + 10 + i * 10), note, fontsize=8)
+    return doc.tobytes()
+
+
+SUBTITLE = "Annual Review 2026 | Prepared for members and friends"
+CALL_TO_ACTION = "Join us at www.northwind-garden.org/join"
+
+
+def subtitle_pdf() -> bytes:
+    """A cover with a title and a one-off 14 pt subtitle, three recurring 16 pt section headings,
+    and a 14 pt closing line that is a web address, not a heading."""
+    doc = pymupdf.open()
+    w = Writer(doc)
+    w.add("Northwind Garden Society", size=28, font="hebo")
+    w.add(SUBTITLE, size=14, space_after=24)
+    for heading, text in zip(("Membership", "Finances", "Events"), PARAGRAPHS):
+        w.add(heading, size=16, font="hebo", space_after=8)
+        w.add(text)
+    w.add(CALL_TO_ACTION, size=14)
+    return doc.tobytes()
+
+
+CHART_LABELS = ["Jan", "Feb", "Mar", "Apr", "Hives", "Ponds"]   # none of these occur in the paragraphs
+
+
+def chart_pdf() -> bytes:
+    """A vector bar chart between two paragraphs: gridlines, bars, tick labels, month labels and a
+    legend. Its labels line up in rows and columns, but it is a chart, not a table."""
+    doc = pymupdf.open()
+    w = Writer(doc)
+    w.add(PARAGRAPHS[2], space_after=14)
+    page, x0, top = w.page, LEFT + 30, w.y
+    base = top + 160
+    for i, value in enumerate((0, 50, 100, 150)):
+        y = base - i * 50
+        page.draw_line((x0, y), (x0 + 300, y), color=(0.8, 0.8, 0.8), width=0.5)
+        page.insert_text((x0 - 24, y + 3), str(value), fontsize=8)
+    for i, (month, (a, b)) in enumerate(zip(CHART_LABELS[:4], [(120, 90), (140, 70), (100, 130), (150, 110)])):
+        x = x0 + 20 + i * 70
+        page.draw_rect(pymupdf.Rect(x, base - a, x + 22, base), color=None, fill=(0.2, 0.4, 0.7))
+        page.draw_rect(pymupdf.Rect(x + 24, base - b, x + 46, base), color=None, fill=(0.9, 0.6, 0.2))
+        page.insert_text((x + 12, base + 12), month, fontsize=8)
+    for i, (name, colour) in enumerate(zip(CHART_LABELS[4:], [(0.2, 0.4, 0.7), (0.9, 0.6, 0.2)])):
+        page.draw_rect(pymupdf.Rect(x0 + i * 90, base + 22, x0 + i * 90 + 8, base + 30), color=None, fill=colour)
+        page.insert_text((x0 + i * 90 + 12, base + 29), name, fontsize=8)
+    w.y = base + 46
+    w.add(PARAGRAPHS[3])
+    return doc.tobytes()
+
+
+def two_column_pdf() -> bytes:
+    """Ordinary prose set in two columns: its lines sit side by side, but it is not a table."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=LETTER.width, height=LETTER.height)
+    middle = (LEFT + RIGHT) / 2
+    for column, texts in ((pymupdf.Rect(LEFT, 72, middle - 12, BOTTOM), PARAGRAPHS[:3]),
+                          (pymupdf.Rect(middle + 12, 72, RIGHT, BOTTOM), PARAGRAPHS[3:6])):
+        assert page.insert_textbox(column, "\n\n".join(texts), fontsize=11, fontname="helv") >= 0
+    return doc.tobytes()
+
+
 # --- Helpers for checking results -------------------------------------------------
 def outline(pdf: bytes) -> list[tuple[int, str]]:
     return [(level, title) for level, title, _ in pymupdf.open("pdf", pdf).get_toc()]
@@ -324,3 +477,70 @@ def test_letter_spaced_title_becomes_words():
     result = convert(src)
     assert blocks(result.markdown)[0] == f"# {SPACED_TITLE}"
     assert outline(result.pdf) == [(1, SPACED_TITLE)]
+
+
+# --- 7. Putting paragraphs and notes back together ----------------------------------------
+def test_paragraphs_and_notes_are_reassembled():
+    assert blocks(convert(assembly_pdf()).markdown) == [
+        PARAGRAPHS[0],
+        f"{SPLIT_START} {SPLIT_END}",                         # two text blocks, one sentence
+        PARAGRAPHS[1],
+        f"{PAGE_END} {PAGE_START}",                           # sentence over a page break
+        "1 Northwind Trust. 2026. Annual report. https://www.northwind-trust.org/reports/annual-2026",
+        "2 ispace. 2026. Results for the year ending March 2026.",   # lower-case start, still its own note
+        "3 Garden Society. 2025. Visitor survey.",
+    ]
+
+
+def test_subtitle_and_web_address_are_not_headings():
+    result = convert(subtitle_pdf())
+    assert outline(result.pdf) == [(1, "Northwind Garden Society"), (2, "Membership"), (2, "Finances"), (2, "Events")]
+    assert SUBTITLE in blocks(result.markdown) and CALL_TO_ACTION in blocks(result.markdown)
+
+
+# --- 8. Tables ----------------------------------------------------------------------------
+@pytest.mark.parametrize("style", ["grid", "banded", "rules", "plain", "shaded"])
+def test_tables_come_out_as_tables(style):
+    result = convert(table_pdf(style))
+    md = result.markdown
+    assert result.stats.get("tables") == 1
+    assert TABLE_MARKDOWN in blocks(md)
+    assert md.index(PARAGRAPHS[0]) < md.index(TABLE_MARKDOWN) < md.index(PARAGRAPHS[1])   # stays in place
+    assert "<th>Region</th>" in result.html and "<td>412</td>" in result.html
+    out = output_text(result.pdf)
+    for cell in (c for row in TABLE for c in row):
+        assert cell in out                                     # every cell is real text in the output PDF
+
+
+@pytest.mark.parametrize("style", ["grid", "plain"])
+def test_wrapped_cell_stays_in_its_row(style):
+    md = convert(wrapped_table_pdf(style)).markdown
+    assert blocks(md) == [PARAGRAPHS[0],
+                          "\n".join(["| Region | Members | Volunteers |", "| --- | --- | --- |", "| North | 412 | 38 |",
+                                     "| South and western coast | 295 | 21 |", "| East | 187 | 12 |"]),
+                          PARAGRAPHS[1]]
+
+
+def test_table_cells_are_not_also_paragraphs():
+    md = convert(table_pdf("plain")).markdown
+    assert [b for b in blocks(md) if "North" in b] == [TABLE_MARKDOWN]
+
+
+@pytest.mark.parametrize("make_pdf", [chart_pdf, two_column_pdf])
+def test_charts_and_text_columns_are_not_tables(make_pdf):
+    result = convert(make_pdf())
+    assert result.stats.get("tables", 0) == 0
+    assert "|" not in result.markdown
+
+
+def test_chart_labels_removed_and_text_kept():
+    md = convert(chart_pdf()).markdown
+    assert blocks(md) == [PARAGRAPHS[2], PARAGRAPHS[3]]
+    for label in CHART_LABELS:
+        assert label not in md
+
+
+def test_two_columns_of_prose_keep_all_text():
+    md = convert(two_column_pdf()).markdown
+    for text in PARAGRAPHS[:6]:
+        assert text in blocks(md)
